@@ -1,0 +1,514 @@
+substitutions:
+  devicename: "esphome_gwsph4600_01"
+  upper_devicename: "Growatt SPH4600 01"
+
+esphome:
+  name: "${devicename}"
+  friendly_name: "${upper_devicename}"
+  on_loop:
+    then:
+      - lambda: delay(5);
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  id: api_id
+  encryption:
+    key: "YOUR KEY GOES HERE"
+
+ota:
+
+network:
+  enable_ipv6: true
+
+wifi:
+  id: wifi_id
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esphome-Web"
+    password: "12345"
+
+captive_portal:
+
+# Time
+time:
+  - id: homeassistant_time
+    platform: homeassistant
+
+# Status loop
+interval:
+  - interval: 2s
+    then:
+      lambda: !lambda |-
+        if (id(api_id).is_connected()) {
+          id(light_rd).turn_off();
+          id(light_gr).turn_off();
+          id(light_bl).toggle();
+        } else if (id(wifi_id).is_connected()) {
+          id(light_rd).turn_off();
+          id(light_gr).toggle();
+          id(light_bl).turn_off();
+        } else {
+          id(light_rd).toggle();
+          id(light_gr).turn_off();
+          id(light_bl).turn_off();
+        }
+
+# Communication
+uart:
+  - id: uart_modbus1
+    baud_rate: 115200
+    tx_pin: GPIO1
+    rx_pin: GPIO3
+
+modbus:
+  id: modbus1
+  uart_id: uart_modbus1
+  flow_control_pin: GPIO4
+
+modbus_controller:
+  - id: modbus_controller1
+    address: 0x1
+    modbus_id: modbus1
+    setup_priority: -10
+
+# Sensors
+switch:
+  # Blue LED
+  - id: light_bl
+    platform: gpio
+    pin: 16
+  # Green LED
+  - id: light_gr
+    platform: gpio
+    pin: 0
+  # Red LED
+  - id: light_rd
+    platform: gpio
+    pin: 2
+
+select:
+  - platform: modbus_controller
+    name: "On/Off Switch"
+    address: 0
+    value_type: U_WORD
+    optionsmap:
+      "Off": 0
+      "On": 1
+
+number:
+  - platform: modbus_controller
+    name: "Active Power Rate"
+    unit_of_measurement: "%"
+    address: 3
+    register_type: holding
+    value_type: U_WORD
+    min_value: 0
+    max_value: 100
+
+text_sensor:
+  - platform: modbus_controller
+    name: "Firmware Version"
+    entity_category: diagnostic
+    address: 9
+    register_type: holding
+    register_count: 3
+
+  - platform: modbus_controller
+    name: "Run State"
+    address: 0
+    register_type: read
+    lambda: |-
+      union {
+        char chars[4];
+        float f;
+        int i;
+      } u;
+      x.copy(u.chars, 4, 0);
+      char buf[20];
+      sprintf(buf, "(%.0f)", u.f);
+      std::string value(buf);
+      if (u.f == 0) return std::string("Waiting") + value;
+      if (u.f == 1) return std::string("Normal") + value;
+      if (u.f == 2) return std::string("Fault") + value;
+      return "Unknown" + value;
+
+sensor:
+  - platform: modbus_controller
+    name: "PV Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 1
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "PV1 Voltage"
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 1
+    icon: mdi:flash
+    address: 3
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "PV1 Current"
+    device_class: current
+    unit_of_measurement: A
+    accuracy_decimals: 1
+    icon: mdi:current-dc
+    address: 4
+    register_type: read
+    value_type: U_WORD
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "PV1 Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 5
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "PV2 Voltage"
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 1
+    icon: mdi:flash
+    address: 7
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "PV2 Current"
+    device_class: current
+    unit_of_measurement: A
+    accuracy_decimals: 1
+    icon: mdi:current-dc
+    address: 8
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "PV2 Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 9
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Grid Voltage"
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 1
+    icon: mdi:flash
+    address: 38
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Grid Current"
+    device_class: current
+    unit_of_measurement: A
+    accuracy_decimals: 1
+    icon: mdi:current-ac
+    address: 39
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "User Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 1015
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Grid Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 1023
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Load Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 1031
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Inverter Temperature"
+    device_class: temperature
+    unit_of_measurement: °C
+    accuracy_decimals: 1
+    address: 93
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Inverter IPM Temperature"
+    device_class: temperature
+    unit_of_measurement: °C
+    accuracy_decimals: 1
+    address: 94
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Discharge Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 1009
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Charge Power"
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:lightning-bolt
+    address: 1011
+    register_type: read
+    register_count: 2
+    value_type: U_DWORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "Battery Voltage"
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 2
+    icon: mdi:flash
+    address: 1013
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.1;
+
+  - platform: modbus_controller
+    name: "SOC"
+    device_class: battery
+    unit_of_measurement: "%"
+    accuracy_decimals: 2
+    icon: mdi:battery
+    address: 1014
+    register_type: read
+    filters:
+      - debounce: 5s
+    value_type: U_WORD
+    lambda: |-
+      if (x < 20) {
+        item->set_icon("mdi:battery-20");
+      } else if (x < 40) {
+        item->set_icon("mdi:battery-40");
+      } else if (x < 60) {
+        item->set_icon("mdi:battery-60");
+      } else if (x < 80) {
+        item->set_icon("mdi:battery-80");
+      } else {
+        item->set_icon("mdi:battery");
+      }
+      return {};
+
+  - platform: modbus_controller
+    name: "BMS SOC"
+    device_class: battery
+    unit_of_measurement: "%"
+    accuracy_decimals: 2
+    icon: mdi:battery
+    address: 1086
+    register_type: read
+    filters:
+      - debounce: 5s
+    value_type: U_WORD
+    lambda: |-
+      if (x < 20) {
+        item->set_icon("mdi:battery-20");
+      } else if (x < 40) {
+        item->set_icon("mdi:battery-40");
+      } else if (x < 60) {
+        item->set_icon("mdi:battery-60");
+      } else if (x < 80) {
+        item->set_icon("mdi:battery-80");
+      } else {
+        item->set_icon("mdi:battery");
+      }
+      return {};
+
+  - platform: modbus_controller
+    name: "BMS Voltage"
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 2
+    icon: mdi:flash
+    address: 1087
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.01;
+
+  - platform: modbus_controller
+    name: "BMS Current"
+    device_class: current
+    unit_of_measurement: A
+    accuracy_decimals: 2
+    icon: mdi:current-dc
+    address: 1088
+    register_type: read
+    value_type: S_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.01;
+
+  - platform: modbus_controller
+    name: "BMS Temperature"
+    device_class: temperature
+    unit_of_measurement: °C
+    accuracy_decimals: 1
+    address: 1089
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 1;
+
+  - platform: modbus_controller
+    name: "BMS Max Current"
+    device_class: current
+    unit_of_measurement: A
+    accuracy_decimals: 2
+    icon: mdi:flash
+    address: 1090
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x * 0.01;
+
+  - platform: modbus_controller
+    name: "BMS Delta Voltage"
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 3
+    icon: mdi:flash
+    address: 1094
+    register_type: read
+    value_type: U_WORD
+    filters:
+      - debounce: 5s
+    lambda: |-
+      return x  * 0.001;
+
+  - platform: modbus_controller
+    name: "BMS Cycle Count"
+    icon: mdi:counter
+    address: 1095
+    register_type: read
+    filters:
+      - debounce: 5s
+    value_type: U_WORD
