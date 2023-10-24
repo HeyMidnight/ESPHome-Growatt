@@ -1,3 +1,5 @@
+# Basic configuration for PV, storage, grid and load values
+
 substitutions:
   devicename: "esphome_gwsph4600_01"
   upper_devicename: "Growatt SPH4600 01"
@@ -45,6 +47,9 @@ time:
     platform: homeassistant
 
 # Status loop
+# Red: Powered up
+# Green: WiFi connected
+# Blue: HA API connected
 interval:
   - interval: 2s
     then:
@@ -123,7 +128,7 @@ text_sensor:
     register_type: holding
     register_count: 3
 
-  - platform: modbus_controller
+  - platform: modbus_controller # This one is buggy
     name: "Run State"
     address: 0
     register_type: read
